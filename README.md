@@ -1,2 +1,2 @@
-Source Community Statistical Areas (CSAs) Reference Boundaries
-https://data.baltimorecity.gov/datasets/9c96ae20e6cc41258015c2fd288716c4_0/explore?location=39.284356%2C-76.620542%2C10.97
+Source: Neighborhood Statistical Area (NSA) Boundaries
+https://data.baltimorecity.gov/datasets/8112521d3e284518b9fa497a188bfb45_0/explore?location=39.284723%2C-76.620522%2C11.10
