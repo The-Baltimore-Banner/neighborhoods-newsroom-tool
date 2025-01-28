@@ -25,13 +25,8 @@
             bottom: 0;
             width: 100%;
         }
-        #geocoder {
-            position: relative;
-            top: 10px;
-            left: 10px;
-            z-index: 1;
-        }
-                #top-controls {
+
+        #features-container {
             position: absolute;
             top: 10px;
             left: 10px;
@@ -40,46 +35,67 @@
             gap: 10px;
             align-items: flex-start;
         }
+
+        #geocoder {
+            position: relative;
+            top: 10px;
+            left: 10px;
+            z-index: 1;
+        }
+
         #neighborhood-info {
             position: absolute;
             top: 60px;
             left: 10px;
             z-index: 1;
+            font-family: 'GT America', sans-serif;
+            min-width: 300px;
+            max-width: 400px;
+        }
+
+        #neighborhood-info:not(:empty) {
             background: white;
             padding: 10px;
             border-radius: 4px;
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            font-family: Arial, sans-serif;
-            min-width: 300px;
-            max-width: 400px;
         }
+
         .neighborhood-button {
-            background-color: rgba(153, 223, 32, 0.85);
-            color: white;
-            border: none;
+            color: 	#808080;
+            background-color: white;
+            border: 0px solid 	#808080;
             border-radius: 4px;
-            padding: 6px 35px;
-            font-size: 15px;
+            padding: 0px 20px;
             cursor: pointer;
             height: 36px;
             display: flex;
             align-items: center;
+            margin-top: 11px;
+            margin-left: 10px;
+            font-family: 'GT America', sans-serif;
+        }
+        .neighborhood-button img {
+            width: 20px;
+            height: 20px;
+
         }
         .neighborhood-button:hover {
-            background-color: rgba(153, 223, 32, 1);
+            background-color: rgb(146, 42, 243);
+            border: none;
+            color: white;
         }
     </style>
 </head>
 <body>
     <div id="embed">
         <div id="map"></div>
-        <div id="top-controls">
+        <div id="features-container">
             <div id="geocoder"></div>
             <button id="resetViewButton" class="neighborhood-button">       
                 <span>Reset View</span>
             </button>
+            <div id="neighborhood-info"></div>
         </div>
-        <div id="neighborhood-info"></div>
     </div>
     <script>
         const defaultCenter = [-76.619, 39.292];
@@ -95,7 +111,7 @@
             center: defaultCenter,
             zoom: defaultZoom,
             maxBounds: marylandBounds,
-            minZoom: 11
+            minZoom: 11.5
         });
 
         const geocoder = new MapboxGeocoder({
@@ -106,19 +122,59 @@
             proximity: {
                 longitude: -76.60060,
                 latitude: 39.32008
-            }
+            },
+            flyTo: false,
+            marker: false
+        });
+
+        const marker = new mapboxgl.Marker({
+            color: '#808080',
+            scale: .7,
+            draggable: false
         });
 
         document.getElementById('geocoder').appendChild(geocoder.onAdd(map));
 
-        document.getElementById('resetViewButton').addEventListener('click', function() {
-    map.flyTo({
-        center: defaultCenter,
-        zoom: defaultZoom
-    });
-});
+         geocoder.on('result', (e) => {
+            console.log('Geocoder result:', e.result);
+            const point = e.result.geometry.coordinates;
+            marker.remove();
+            marker.setLngLat(point).addTo(map);
+            getNeighborhoodInfo(point);
+        });
 
-        // Function to get neighborhood information
+
+        // Hide neighborhood info during search
+        geocoder.on('loading', () => {
+            const infoDiv = document.getElementById('neighborhood-info');
+            infoDiv.innerHTML = '';  // Clear the content
+        });
+
+        // Clear neighborhood info when geocoder is cleared
+        geocoder.on('clear', () => {
+            const infoDiv = document.getElementById('neighborhood-info');
+            infoDiv.innerHTML = '';
+        });
+
+       
+
+        document.getElementById('resetViewButton').addEventListener('click', function() {
+            marker.remove();
+            geocoder.clear();
+            const infoDiv = document.getElementById('neighborhood-info');
+            infoDiv.innerHTML = '';
+
+            map.getSource('highlighted-community').setData({
+                type: 'FeatureCollection',
+                features: []
+            });
+
+            map.flyTo({
+                center: defaultCenter,
+                zoom: defaultZoom
+            });
+        });
+
         function getNeighborhoodInfo(point) {
             console.log('Querying point:', point);
             
@@ -134,39 +190,37 @@
             if (features.length > 0) {
                 const community = features[0].properties;
                 console.log('Raw community data:', community);
-                console.log('FID:', community.FID);
-                console.log('Community name:', community.Community);
-                console.log('Neighborhoods:', community.Neigh);
+                console.log('Neighborhood:', community.Name);
+                console.log('Population Size:', community.Population);
                 
-                // Format the neighborhood list by splitting on commas
-                const neighborhoods = community.Neigh ? community.Neigh.split(',').map(n => n.trim()).join('<br>- ') : 'Not available';
-                
+                map.getSource('highlighted-community').setData({
+                    type: 'FeatureCollection',
+                    features: [features[0]]
+                });    
+
                 infoDiv.innerHTML = `
-                    <strong>Community Statistical Area:</strong><br>
-                    ${community.Community || 'Not available'}<br><br>
-                    <strong>Neighborhoods:</strong><br>
-                    - ${neighborhoods}<br><br>
-                    <strong>ID:</strong> ${community.FID || 'Not available'}
+                    <strong>Neighborhood:</strong>
+                    ${community.Name || 'Not available'}<br><br>
+                    <strong>Population Size:</strong> ${community.Population || 'Not available'}<br><br>
+                    Source: Neighborhood Statistical Area (NSA) Boundaries<br>
                 `;
             } else {
                 console.log('No features found at this location');
                 infoDiv.innerHTML = '<strong>No community found at this location</strong>';
+
+                map.getSource('highlighted-community').setData({
+                    type: 'FeatureCollection',
+                    features: []
+                });
             }
         }
-
-        // Add event listener for geocoder result
-        geocoder.on('result', (e) => {
-            console.log('Geocoder result:', e.result);
-            const point = e.result.geometry.coordinates;
-            getNeighborhoodInfo(point);
-        });
 
         map.on('load', async () => {
             console.log('Map loaded successfully');
 
             try {
                 // Load the GeoJSON file
-                const response = await fetch('Community_Statistical_Areas_(CSAs)__Reference_Boundaries.geojson');
+                const response = await fetch('data/Neighborhood_Statistical_Area_(NSA)_Boundaries.geojson');
                 const data = await response.json();
                 console.log('Loaded GeoJSON data:', data);
 
@@ -178,12 +232,32 @@
 
                 // Add the layer
                 map.addLayer({
-                    'id': 'communities-layer',
+                    'id': 'communities-layer',  // This ID matches what you're querying in getNeighborhoodInfo
                     'type': 'fill',
                     'source': 'communities',
                     'paint': {
                         'fill-color': '#000000',
-                        'fill-opacity': 0.2,
+                        'fill-opacity': 0,
+                        'fill-outline-color': '#000000'
+                    }
+                });
+
+
+                map.addSource('highlighted-community', {
+                    type: 'geojson',
+                    data: {
+                        type: 'FeatureCollection',
+                        features: []
+                    }
+                });
+
+                map.addLayer({
+                    'id': 'highlighted-community-layer',
+                    'type': 'fill',
+                    'source': 'highlighted-community',
+                    'paint': {
+                        'fill-color': 'rgb(146, 42, 243)',  // Yellow
+                        'fill-opacity': 0.5,
                         'fill-outline-color': '#000000'
                     }
                 });
@@ -193,6 +267,48 @@
                 console.error('Error loading GeoJSON:', error);
             }
         });
+
+        map.on('click', (e) => {
+        // Get clicked point coordinates
+        const point = [e.lngLat.lng, e.lngLat.lat];
+        
+        // Query features at clicked point
+        const features = map.queryRenderedFeatures(
+            e.point,  // Use the clicked point
+            { layers: ['communities-layer'] }
+        );
+        
+        const infoDiv = document.getElementById('neighborhood-info');
+        
+        if (features.length > 0) {
+            const community = features[0].properties;
+            
+            // Add/move marker to clicked location
+            marker.setLngLat(point).addTo(map);
+
+            // Highlight the area
+            map.getSource('highlighted-community').setData({
+                type: 'FeatureCollection',
+                features: [features[0]]
+            });
+
+            // Show info
+            infoDiv.innerHTML = `
+                <strong>Neighborhood:</strong>
+                ${community.Name || 'Not available'}<br><br>
+                <strong>Population Size:</strong> ${community.Population || 'Not available'}<br><br>
+                Source: Neighborhood Statistical Area (NSA) Boundaries<br>
+            `;
+        } else {
+            // Clear marker, highlight, and info if clicking outside communities
+            marker.remove();
+            infoDiv.innerHTML = '';
+            map.getSource('highlighted-community').setData({
+                type: 'FeatureCollection',
+                features: []
+            });
+        }
+    });
     </script>
 </body>
 </html>
